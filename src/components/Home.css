@@ -1,0 +1,45 @@
+/* Main container with flex layout */
+.main-container {
+  display: flex;
+  gap: 40px;  /* Space between the left and right columns */
+  padding: 20px;
+  height: 100vh;  /* Ensure the container takes full viewport height */
+}
+
+/* Left column */
+.side-column {
+  flex: 0.5;  /* Takes up 1 part of space */
+  padding: 20px;
+  background-color: #f7f9fc;  /* Light background to differentiate */
+  border-radius: 8px;  /* Rounded corners */
+  height: 100%;  /* Make sure the left column takes full height */
+  overflow-y: auto;  /* Enable scrolling if content overflows */
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Right column */
+.content-column {
+  flex: 2;  /* The right column takes 2 parts of space */
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  overflow-y: auto;  /* Enable scrolling if content overflows */
+  height: 100%;  /* Make sure the right column takes full height */
+}
+
+/* Each content box for Upload and WeProvide */
+.content-box {
+  flex: 1;  /* Equal width for both components */
+  padding: 20px;
+  background-color: #ffffff;  /* White background */
+  border-radius: 8px;  /* Rounded corners */
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);  /* Soft shadow */
+}
+
+/* Optional: Styles for specific components */
+.upload-container, .weprovide-container {
+  width: 100%;
+  max-width: 500px;
+}
