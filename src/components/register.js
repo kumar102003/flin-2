@@ -10,8 +10,35 @@ function Register() {
   const [lname, setLname] = useState("");
   const navigate = useNavigate(); // React Router navigate hook
 
+  // const handleRegister = async (e) => {
+  //   e.preventDefault();
+  //   try {
+  //     // Make POST request to register API
+  //     const response = await axios.post("http://localhost:5000/api/users/register", {
+  //       email,
+  //       password,
+  //       firstName: fname,
+  //       lastName: lname,
+  //     });
+
+  //     if (response.status === 201) {
+  //       toast.success("User Registered Successfully!!", {
+  //         position: "top-center",
+  //       });
+
+  //       // Redirect to login page
+  //       navigate("/login");
+  //     }
+  //   } catch (error) {
+  //     console.error("Error during registration:", error.response?.data?.message || error.message);
+  //     toast.error(error.response?.data?.message || "Registration failed. Please try again.", {
+  //       position: "bottom-center",
+  //     });
+  //   }
+  // };
   const handleRegister = async (e) => {
     e.preventDefault();
+  
     try {
       // Make POST request to register API
       const response = await axios.post("http://localhost:5000/api/users/register", {
@@ -20,22 +47,41 @@ function Register() {
         firstName: fname,
         lastName: lname,
       });
-
+  
       if (response.status === 201) {
+        const { token, user } = response.data; // Extract token and user data from response
+  
+        // Store JWT in localStorage (or use cookies for more secure storage)
+        console.log("email token ",token);
+        localStorage.setItem("jwt", token);
+      console.log(user)
+        // Update user state globally (e.g., using UserContext)
+        // setUser({
+        //   email: user.email,
+        //   firstName: user.firstName,
+        //   lastName: user.lastName,
+        //   uid: user.uid,
+        // });
+  
         toast.success("User Registered Successfully!!", {
           position: "top-center",
         });
-
-        // Redirect to login page
-        navigate("/login");
+  
+        // Redirect to a protected route (e.g., dashboard or home)
+        navigate("/");
       }
     } catch (error) {
       console.error("Error during registration:", error.response?.data?.message || error.message);
-      toast.error(error.response?.data?.message || "Registration failed. Please try again.", {
-        position: "bottom-center",
-      });
+  
+      toast.error(
+        error.response?.data?.message || "Registration failed. Please try again.",
+        {
+          position: "bottom-center",
+        }
+      );
     }
   };
+  
 
   return (
     <form onSubmit={handleRegister}>

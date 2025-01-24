@@ -1,35 +1,36 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 import { Container, Form, Button, ProgressBar, Modal } from "react-bootstrap";
-import { toast } from "react-toastify";
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
 
-const FileUpload = () => {
+const FileUpload = ({ onUploadSuccess }) => {  // Pass callback prop here
   const [file, setFile] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [showModal, setShowModal] = useState(false);
-  const [uploadedFilesCount, setUploadedFilesCount] = useState(0); // Track uploaded files count
+  const [uploadedFilesCount, setUploadedFilesCount] = useState(0);
   const navigate = useNavigate();
+  const fileInputRef = useRef(null); // Ref for the file input element
 
-  // Fetch uploaded files count on component mount
   useEffect(() => {
     const fetchUploadedFilesCount = async () => {
-      const uid = localStorage.getItem("uid");
-      console.log("Fetching uploaded files for UID:", uid);
-
-      if (!uid) {
-        //.error("Please log in to continue.", { position: "top-center" });
+      const token = localStorage.getItem("jwt");
+      if (!token) {
+        toast.error("Please log in to continue.", { position: "top-center" });
         return;
       }
 
       try {
-        const response = await axios.get(`http://localhost:5000/api/users/profile/${uid}`);
+        const response = await axios.get("http://localhost:5000/api/users/files", {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
 
-        // Access the `files` array directly from the response
         if (response.data && response.data.files) {
           setUploadedFilesCount(response.data.files.length);
         } else {
-          console.error("Files data is missing in the response.");
           toast.error("Failed to fetch user data.", { position: "top-center" });
         }
       } catch (error) {
@@ -46,49 +47,50 @@ const FileUpload = () => {
   };
 
   const handleUpload = async (e) => {
-    e.preventDefault(); // Prevent page refresh on button click
-  
-    const uid = localStorage.getItem("uid");
-    if (!uid) {
+    e.preventDefault();
+
+    const token = localStorage.getItem("jwt");
+    if (!token) {
       toast.error("Please log in to upload files.", { position: "top-center" });
       return;
     }
-  
+
     if (!file) {
+      console.log("No file selected!");
       toast.error("Please select a file to upload.", { position: "top-center" });
       return;
     }
-    // Check if the user has reached the upload limit
+
     if (uploadedFilesCount >= 10) {
       setShowModal(true);
       return;
     }
-  
-    
-  
+
     const formData = new FormData();
     formData.append("file", file);
-    formData.append("uid", uid);
-  
+
     try {
-      const response = await axios.post(
-        "http://localhost:5000/api/users/upload",
-        formData,
-        {
-          onUploadProgress: (progressEvent) => {
-            setUploadProgress(
-              Math.round((progressEvent.loaded / progressEvent.total) * 100)
-            );
-          },
-        }
-      );
-  
+      const response = await axios.post("http://localhost:5000/api/users/upload", formData, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        onUploadProgress: (progressEvent) => {
+          setUploadProgress(Math.round((progressEvent.loaded / progressEvent.total) * 100));
+        },
+      });
+
       toast.success("File uploaded successfully!", { position: "top-center" });
       setUploadProgress(0);
-      setFile(null);
-  
-      // Increment uploaded files count
-      setUploadedFilesCount((prevCount) => prevCount + 1);
+      setFile(null); // Reset file state
+
+      // Clear file input field using ref
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+
+      // After upload, notify Home component to update the sidebar
+      onUploadSuccess(uploadedFilesCount + 1);  // Pass the new file count to Home
+
     } catch (error) {
       if (error.response && error.response.status === 403) {
         setShowModal(true);
@@ -104,7 +106,6 @@ const FileUpload = () => {
       }
     }
   };
-  
 
   const handleUpgrade = () => {
     setShowModal(false);
@@ -118,11 +119,17 @@ const FileUpload = () => {
 
   return (
     <Container>
+      <ToastContainer />
       <h2 className="mt-4">File Upload</h2>
 
-      <Form.Group controlId="formFile" className="mb-3">
-        <Form.Label>Select a file to upload</Form.Label>
-        <Form.Control type="file" onChange={handleFileChange} />
+      <Form.Group className="mb-3">
+        <Form.Label htmlFor="fileInput">Select a file to upload</Form.Label>
+        <Form.Control
+          id="fileInput"
+          type="file"
+          onChange={handleFileChange}
+          ref={fileInputRef} // Attach ref to file input
+        />
       </Form.Group>
 
       <Button onClick={handleUpload} variant="primary">
@@ -130,11 +137,7 @@ const FileUpload = () => {
       </Button>
 
       {uploadProgress > 0 && (
-        <ProgressBar
-          now={uploadProgress}
-          label={`${uploadProgress}%`}
-          className="mt-3"
-        />
+        <ProgressBar now={uploadProgress} label={`${uploadProgress}%`} className="mt-3" />
       )}
 
       <Modal show={showModal} onHide={() => setShowModal(false)}>

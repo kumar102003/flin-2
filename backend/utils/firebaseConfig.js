@@ -1,12 +1,11 @@
-const { initializeApp } = require("firebase/app");
+const admin = require("firebase-admin");
+const serviceAccount = require("./serviceAccountKey.json");
 
-const firebaseConfig = {
-  apiKey: "AIzaSyAoaVvh0qhdewCDWY_W3EBoooxnnFacVWQ",
-  authDomain: "intern-ca93c.firebaseapp.com",//
-  projectId: "intern-ca93c",
-  storageBucket: "intern-ca93c.firebasestorage.app",//
-  messagingSenderId: "513344989586",
-  appId: "1:513344989586:web:07ca0aeeca11b2db1c394b",
-};
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+    //storageBucket: "intern-ca93c.appspot.com",
+  });
+}
 
-module.exports = firebaseConfig;
+module.exports = admin;

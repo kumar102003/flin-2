@@ -1,53 +1,178 @@
+const admin = require("../utils/firebaseConfig"); // Firebase Admin SDK
 const User = require("../models/user.model");
-const uploadOnCloudinary= require("../utils/cloudinary");
 const asyncHandler = require("../utils/asyncHandler");
 const ApiError = require("../utils/ApiError");
-const { getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } = require("firebase/auth");
-const { initializeApp } = require("firebase/app");
-const firebaseConfig = require("../utils/firebaseConfig.js");
-const bcrypt = require('bcrypt'); // Import bcrypt for hashing
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
+const bcrypt = require("bcrypt");
+const uploadOnCloudinary = require("../utils/cloudinary");
 const cloudinary = require("cloudinary").v2;
+const jwt = require("jsonwebtoken");
 
-// Helper Function for Input Validation
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+// Helper Function to Validate Required Fields
 const validateFields = (fields) => {
   for (const [key, value] of Object.entries(fields)) {
     if (!value || value.trim() === "") throw new ApiError(`${key} is required`, 400);
   }
 };
 
-// Register User
+
+const generateToken = (uid, email) => {
+  return jwt.sign(
+    { uid, email }, // Payload
+    process.env.JWT_SECRET, // Secret key from environment variables
+    { expiresIn: "24h" } // Token expiration (adjust as needed)
+  );
+};
+// **Register User**
+// exports.registerUser = asyncHandler(async (req, res) => {
+//   const { google, idToken, email, password, firstName, lastName, displayName } = req.body;
+
+//   // Handle Google Sign-In
+//   if (google) {
+//     if (!idToken) {
+//       throw new ApiError("Google ID token is required for Google Sign-In", 400);
+//     }
+
+//     try {
+//       // Verify the Google ID token using Firebase Admin SDK
+//       const decodedToken = await admin.auth().verifyIdToken(idToken);
+//       const uid = decodedToken.uid;
+
+//       // Check if the user already exists in MongoDB
+//       let user = await User.findOne({ uid });
 
 
+//       if (!user) {
+//         // First-time Google user, create a new record in MongoDB
+//         const nameParts = displayName ? displayName.split(" ") : [];
+//         user = await User.create({
+//           uid,
+//           email: decodedToken.email,
+//           firstName: firstName || nameParts[0] || "",
+//           lastName: lastName || nameParts[1] || "",
+//           files: [],
+//           isSubscribed: false,
+//         });
+//       }
+
+//       // Return the user data without JWT token for now
+//       return res.status(201).json({
+//         message: "User registered successfully using Google.",
+//         user,
+//       });
+//     } catch (error) {
+//       console.error("Error during Google Sign-In:", error.message);
+//       throw new ApiError(`Google Sign-In failed: ${error.message}`, 400);
+//     }
+//   }
+
+//   // Handle Email/Password Registration
+//   if (!email || !password || !firstName || !lastName) {
+//     throw new ApiError("All fields are required for Email/Password registration", 400);
+//   }
+
+//   try {
+//     // Create a new user in Firebase Authentication
+//     const userRecord = await admin.auth().createUser({
+//       email,
+//       password,
+//       displayName: `${firstName} ${lastName}`,
+//     });
+
+//     // Hash the password and save the user details in MongoDB
+//     const hashedPassword = await bcrypt.hash(password, 10);
+//     const newUser = await User.create({
+//       uid: userRecord.uid,
+//       email: userRecord.email,
+//       password: hashedPassword,
+//       firstName,
+//       lastName,
+//       files: [],
+//       isSubscribed: false,
+//     });
+
+//     res.status(201).json({
+//       message: "User registered successfully.",
+//       user: newUser,
+//     });
+//   } catch (error) {
+//     console.error("Error during Email/Password Registration:", error.message);
+//     throw new ApiError(`Registration failed: ${error.message}`, 400);
+//   }
+// });
+
+
+// // **Login User**
+// exports.loginUser = asyncHandler(async (req, res) => {
+//   const { idToken } = req.body;
+
+//   if (!idToken) {
+//     throw new ApiError("ID token is required for login", 400);
+//   }
+
+//   try {
+//     // Verify the ID token using Firebase Admin SDK
+//     const decodedToken = await admin.auth().verifyIdToken(idToken);
+//     const uid = decodedToken.uid;
+
+//     // Check if the user exists in MongoDB
+//     const user = await User.findOne({ uid });
+//     if (!user) {
+//       throw new ApiError("User not found in the database", 404);
+//     }
+
+//     res.status(200).json({
+//       message: "Login successful",
+//       user,
+//     });
+//   } catch (error) {
+//     console.error("Error during login:", error.message);
+//     throw new ApiError(`Login failed: ${error.message}`, 400);
+//   }
+// });
 exports.registerUser = asyncHandler(async (req, res) => {
-  const { google, uid, email, password, firstName, lastName, displayName } = req.body;
+  const { google, idToken, email, password, firstName, lastName, displayName } = req.body;
 
+  // Handle Google Sign-In
   if (google) {
-    // Handle Google Sign-In
-    if (!uid || !email) {
-      throw new ApiError("UID and email are required for Google Sign-In", 400);
+    if (!idToken) {
+      throw new ApiError("Google ID token is required for Google Sign-In", 400);
     }
 
-    const existingUser = await User.findOne({ uid });
-    if (existingUser) {
-      return res.status(200).json({ message: "User already registered with Google", user: existingUser });
+    try {
+      // Verify the Google ID token using Firebase Admin SDK
+      const decodedToken = await admin.auth().verifyIdToken(idToken);
+      const uid = decodedToken.uid;
+
+      // Check if the user already exists in MongoDB
+      let user = await User.findOne({ uid });
+
+      if (!user) {
+        // First-time Google user, create a new record in MongoDB
+        const nameParts = displayName ? displayName.split(" ") : [];
+        user = await User.create({
+          uid,
+          email: decodedToken.email,
+          firstName: firstName || nameParts[0] || "",
+          lastName: lastName || nameParts[1] || "",
+          files: [],
+          isSubscribed: false,
+        });
+      }
+
+      // Generate JWT token
+      const token = generateToken(user.uid, user.email);
+   console.log("google ",token);
+      // Return the user data with JWT token
+      return res.status(201).json({
+        message: "User registered successfully using Google.",
+        user,
+        token, // Include JWT token
+      });
+    } catch (error) {
+      console.error("Error during Google Sign-In:", error.message);
+      throw new ApiError(`Google Sign-In failed: ${error.message}`, 400);
     }
-
-    const nameParts = displayName ? displayName.split(" ") : [];
-    const googleUser = await User.create({
-      uid,
-      email,
-      firstName: firstName || nameParts[0] || "",
-      lastName: lastName || nameParts[1] || "",
-      files: [],
-      isSubscribed: false,
-    });
-
-    return res.status(201).json({
-      message: "User registered successfully using Google.",
-      user: googleUser,
-    });
   }
 
   // Handle Email/Password Registration
@@ -55,146 +180,195 @@ exports.registerUser = asyncHandler(async (req, res) => {
     throw new ApiError("All fields are required for Email/Password registration", 400);
   }
 
-  const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-  const firebaseUser = userCredential.user;
+  try {
+    // Create a new user in Firebase Authentication
+    const userRecord = await admin.auth().createUser({
+      email,
+      password,
+      displayName: `${firstName} ${lastName}`,
+    });
 
-  const existingUser = await User.findOne({ uid: firebaseUser.uid });
-  if (existingUser) {
-    throw new ApiError("User already registered", 400);
+    // Hash the password and save the user details in MongoDB
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const newUser = await User.create({
+      uid: userRecord.uid,
+      email: userRecord.email,
+      password: hashedPassword,
+      firstName,
+      lastName,
+      files: [],
+      isSubscribed: false,
+    });
+
+    // Generate JWT token
+    const token = generateToken(newUser.uid, newUser.email);
+    console.log("email ",token);
+    res.status(201).json({
+      message: "User registered successfully.",
+      user: newUser,
+      token, // Include JWT token
+    });
+  } catch (error) {
+    console.error("Error during Email/Password Registration:", error.message);
+    throw new ApiError(`Registration failed: ${error.message}`, 400);
+  }
+});
+exports.loginUser = asyncHandler(async (req, res) => {
+  const { idToken } = req.body;
+
+  if (!idToken) {
+    throw new ApiError("ID token is required for login", 400);
   }
 
-  const newUser = await User.create({
-    uid: firebaseUser.uid,
-    email: firebaseUser.email,
-    password: await bcrypt.hash(password, 10),
-    firstName,
-    lastName,
-    files: [],
-    isSubscribed: false,
-  });
-
-  res.status(201).json({
-    message: "User registered successfully.",
-    user: newUser,
-  });
-});
-
-
-// Login User
-exports.loginUser = asyncHandler(async (req, res) => {
-  const { email, password } = req.body;
-
-  validateFields({ email, password });
-
   try {
-    const userCredential = await signInWithEmailAndPassword(auth, email, password);
-    const firebaseUser = userCredential.user;
+    // Verify the ID token using Firebase Admin SDK
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const uid = decodedToken.uid;
 
-    // Find user in MongoDB
-    const user = await User.findOne({ uid: firebaseUser.uid });
+    // Check if the user exists in MongoDB
+    const user = await User.findOne({ uid });
     if (!user) {
       throw new ApiError("User not found in the database", 404);
     }
 
-    res.status(200).json({ message: "Login successful", user });
+    // Generate JWT token
+    const token = generateToken(user.uid, user.email);
+   console.log("Login" , token);
+    res.status(200).json({
+      message: "Login successful",
+      user,
+      token, // Include JWT token
+    });
   } catch (error) {
-    throw new ApiError(error.message, 400);
+    console.error("Error during login:", error.message);
+    throw new ApiError(`Login failed: ${error.message}`, 400);
   }
 });
 
-// Logout User
-exports.logoutUser = asyncHandler(async (req, res) => {
-  try {
-    await signOut(auth);
-    res.status(200).json({ message: "Logout successful" });
-  } catch (error) {
-    throw new ApiError(error.message, 400);
-  }
-});
 
-// Get User Profile
+// **Get User Profile**
 exports.getProfile = asyncHandler(async (req, res) => {
-  const user = await User.findOne({ uid: req.params.uid });
-  if (!user) throw new ApiError("User not found", 404);
-  
-  res.json(user);
+  // Assuming `req.user` is populated by `verifyToken` middleware
+  const { uid } = req.user;
+
+
+  // Find user in the database
+  const user = await User.findOne({ uid });
+  if (!user) {
+    throw new ApiError(404, "User not found");
+  }
+
+  // Respond with user details
+  res.status(200).json({
+    success: true,
+    message: "User profile retrieved successfully",
+    user,
+  });
 });
-
-// Upload File
+// **Upload File**
 exports.uploadFile = asyncHandler(async (req, res) => {
-  console.log("Request UID:", req.body.uid);
+  const { uid } = req.user; // Extract the authenticated user's `uid` from the token
 
-  // Log the file path generated by Multer (or other middleware)
-  console.log("File Path:", req.file?.path);
-  const user = await User.findOne({ uid: req.body.uid });
-  console.log(user)
+  // Validate if the user exists
+  const user = await User.findOne({ uid });
   if (!user) throw new ApiError("User not found", 404);
 
-  // Check if the user has exceeded their free limit
+  // Check if the user has exceeded their free file limit
   if (!user.isSubscribed && user.files.length >= 10) {
     throw new ApiError(403, "Upgrade to subscription to upload more files");
   }
 
   try {
-    const localFilePath = req.file.path; // Assuming multer stores the file path
-    console.log(localFilePath)
+    const localFilePath = req.file.path; // Assuming Multer is used for file uploads
     const response = await uploadOnCloudinary(localFilePath);
-     
 
-    console.log(response)
-    user.files.push({ url: response.secure_url, public_id: response.public_id });
+    // Add the uploaded file to the user's `files` array
+    user.files.push({
+      url: response.secure_url,
+      public_id: response.public_id,
+    });
     await user.save();
 
-    res.status(201).json({ message: "File uploaded successfully", file: response.secure_url });
+    res.status(201).json({
+      message: "File uploaded successfully",
+      file: response.secure_url,
+    });
   } catch (error) {
+    console.error("Error uploading file:", error.message);
     throw new ApiError("Failed to upload file", 500);
   }
 });
-exports.getFiles = asyncHandler(async (req, res) => {
-  // Retrieve user from the request (populated by authMiddleware)
-  const user = await User.findOne({ uid: req.params.uid });
 
+// **Get User Files**
+exports.getFiles = asyncHandler(async (req, res) => {
+  // Extract `uid` from `req.user` (populated by the `verifyToken` middleware)
+  const { uid } = req.user;
+
+  // Find the user in the database
+  const user = await User.findOne({ uid });
   if (!user) {
-    throw new ApiError("User not found", 404);
+    throw new ApiError(404, "User not found");
   }
 
-  // Respond with the files array
+  // Respond with the user's files
   res.status(200).json({
     message: "Files retrieved successfully",
     files: user.files,
   });
 });
-// Delete File
-exports.deleteFile = asyncHandler(async (req, res, next) => {
-  const { uid, public_id } = req.body;
 
-  if (!uid || !public_id) {
-    return next(new ApiError(400, "uid and public_id are required"));
-  }
+// **Delete File**
+exports.deleteFile = asyncHandler(async (req, res) => {
+  const { public_id } = req.body; // Retrieve the public_id of the file to delete
+  const { uid } = req.user; // Retrieve uid from verifyToken middleware
 
+  // Find the user in the database
   const user = await User.findOne({ uid });
-  if (!user) {
-    return next(new ApiError(404, "User not found"));
-  }
+  if (!user) throw new ApiError("User not found", 404);
 
+  // Find the file in the user's files array
   const fileIndex = user.files.findIndex((file) => file.public_id === public_id);
-  if (fileIndex === -1) {
-    return next(new ApiError(404, "File not found"));
-  }
+  if (fileIndex === -1) throw new ApiError("File not found", 404);
 
   try {
     // Delete the file from Cloudinary
-    const response = await cloudinary.uploader.destroy(public_id);
-    if (response.result !== "ok") {
-      return next(new ApiError(500, "Failed to delete file from Cloudinary"));
-    }
+    await cloudinary.uploader.destroy(public_id);
 
     // Remove the file from the user's files array
     user.files.splice(fileIndex, 1);
     await user.save();
 
-    res.status(200).json({ success: true, message: "File deleted successfully" });
+    res.status(200).json({ message: "File deleted successfully" });
   } catch (error) {
-    next(error);
+    console.error("Error deleting file:", error.message);
+    throw new ApiError("Failed to delete file", 500);
+  }
+});
+exports.handlePayment = asyncHandler(async (req, res) => {
+  const { product } = req.body;
+
+  if (!product || !product.price) {
+    return res.status(400).json({ message: "Product and price are required." });
+  }
+
+  try {
+    // Convert price to cents (Stripe requires amount in cents)
+    const amount = parseInt(product.price.replace("$", "")) * 100;
+
+    // Create a Payment Intent
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount, // Price in cents
+      currency: "usd",
+      description: `Payment for ${product.name}`, // Corrected string interpolation
+      metadata: { product: product.name },
+    });
+
+    // Respond with the client secret
+    res.status(200).json({
+      clientSecret: paymentIntent.client_secret,
+    });
+  } catch (error) {
+    console.error("Payment Error:", error.message);
+    res.status(500).json({ message: "Payment failed", error: error.message });
   }
 });

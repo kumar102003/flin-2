@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { toast, ToastContainer } from "react-toastify";
-import './Mydata.css'
+import "./Mydata.css";
+
 const Mydata = () => {
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -12,19 +13,22 @@ const Mydata = () => {
   }, []);
 
   const fetchData = async () => {
-    const uid = localStorage.getItem("uid"); // Fetch UID from localStorage
+    const token = localStorage.getItem("jwt"); // Retrieve token from localStorage
 
-    if (!uid) {
+    if (!token) {
       setError("User not logged in. Please log in to view your data.");
       setLoading(false);
       return;
     }
 
     try {
-      const response = await axios.get(
-        `http://localhost:5000/api/users/profile/${uid}`
-      ); // Pass UID as a parameter
-      setFiles(response.data.files || []); // Assuming `files` is the array of uploaded files
+      // Fetch files from the backend
+      const response = await axios.get("http://localhost:5000/api/users/files", {
+        headers: {
+          Authorization: `Bearer ${token}`, // Send token in Authorization header
+        },
+      });
+      setFiles(response.data.files || []); // Assuming `files` is an array of uploaded files
       setLoading(false);
     } catch (error) {
       console.error("Error fetching files:", error);
@@ -34,25 +38,22 @@ const Mydata = () => {
   };
 
   const handleDelete = async (public_id) => {
-    const uid = localStorage.getItem("uid");
-  
-    if (!uid) {
+    const token = localStorage.getItem("jwt");
+
+    if (!token) {
       setError("User not logged in. Please log in to delete files.");
       return;
     }
-  
+
     try {
-      // Use query parameters to send uid and public_id
-      const response = await axios.delete(
-        `http://localhost:5000/api/users/delete`,
-        {
-          data: {
-            uid,
-            public_id,
-          },
-        }
-      );
-  
+      // Send DELETE request to backend with token and file details
+      const response = await axios.delete("http://localhost:5000/api/users/delete", {
+        headers: {
+          Authorization: `Bearer ${token}`, // Send token in Authorization header
+        },
+        data: { public_id }, // Pass the public_id in the request body
+      });
+
       if (response.status === 200) {
         // Remove the deleted file from the list
         setFiles((prevFiles) => prevFiles.filter((file) => file.public_id !== public_id));
@@ -63,14 +64,16 @@ const Mydata = () => {
       }
     } catch (error) {
       console.error("Error deleting file:", error);
-      alert("Failed to delete the file. Please try again.");
+      toast.error("Failed to delete the file. Please try again.", {
+        position: "top-center",
+      });
     }
   };
-  
 
   return (
     <div className="container mt-4">
       <h2 className="text-center mb-4">Uploaded Files</h2>
+      <ToastContainer />
       {loading ? (
         <p className="text-center">Loading...</p>
       ) : error ? (

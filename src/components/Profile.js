@@ -1,54 +1,52 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useContext } from "react";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
-import userImage from "../assest/user.png"; // Default user image
-import './Profile.css'
+import userImage from "../assest/user.png";
+import { UserContext } from "../components/contextAPI/userContext"; // Import UserContext
+import "./Profile.css";
+
 function Profile() {
   const [userDetails, setUserDetails] = useState(null);
   const navigate = useNavigate();
+  const { user, logout } = useContext(UserContext); // Destructure user and logout from context
 
   const fetchUserData = async () => {
-    const storedUid = localStorage.getItem("uid"); // Retrieve UID from localStorage
-    const localPhotoURL = localStorage.getItem("photoURL"); // Retrieve photoURL from localStorage
-
-    if (!storedUid) {
-      console.log("No UID found in localStorage. User might not be logged in.");
+    if (!user || !user.token) {
+      console.log("No token found in context. User might not be logged in.");
+      logout(); // Log out the user if no token is found
+      navigate("/login"); // Redirect to login
       return;
     }
 
     try {
-      const response = await axios.get(
-        `http://localhost:5000/api/users/profile/${storedUid}`
-      );
+      // Send token in Authorization header
+      const response = await axios.get("http://localhost:5000/api/users/profile", {
+        headers: {
+          Authorization: `Bearer ${user.token}`,
+        },
+      });
 
-      // Use API's photoURL if available, fallback to localStorage, or use the default image
-      const resolvedPhotoURL =
-        response.data.photoURL || localPhotoURL || userImage;
+      // Resolve the photoURL dynamically
+      const resolvedPhotoURL = response.data.user.photoURL || userImage;
 
-      // Combine user details with the resolved photoURL
+      // Set user details in state
       setUserDetails({
-        ...response.data,
+        ...response.data.user,
         photoURL: resolvedPhotoURL,
       });
     } catch (error) {
       console.error("Error fetching user data:", error.message);
+      if (error.response?.status === 401) {
+        // Token might be invalid or expired
+        logout(); // Log out the user
+        navigate("/login"); // Redirect to login
+      }
     }
   };
 
   useEffect(() => {
     fetchUserData();
   }, []);
-
-  const handleLogout = async () => {
-    try {
-      localStorage.removeItem("uid");
-      localStorage.removeItem("photoURL"); // Clear the photoURL from localStorage
-      navigate("/login"); // Redirect to login
-      console.log("User logged out successfully!");
-    } catch (error) {
-      console.error("Error logging out:", error.message);
-    }
-  };
 
   const handleViewUploads = () => {
     navigate("/mydata");
@@ -76,7 +74,7 @@ function Profile() {
               <strong>Last Name:</strong> {userDetails.lastName}
             </p>
           </div>
-          <button className="btn btn-danger mt-3 me-3" onClick={handleLogout}>
+          <button className="btn btn-danger mt-3 me-3" onClick={logout}>
             Logout
           </button>
           <button className="btn btn-primary mt-3" onClick={handleViewUploads}>

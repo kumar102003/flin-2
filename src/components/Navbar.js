@@ -1,43 +1,12 @@
-import React, { useState, useEffect } from "react";
-import { useNavigate , Link} from "react-router-dom";
+import React, { useContext } from "react";
+import { useNavigate, Link } from "react-router-dom";
+import { UserContext } from "./contextAPI/userContext";
 import userImage from "../assest/user.png"; // Default user image
+import { toast } from "react-toastify"; // Import Toast for better UX
 
 const Navbar = () => {
-  const [user, setUser] = useState(null);
+  const { user, logout } = useContext(UserContext); // Access UserContext
   const navigate = useNavigate();
-
-  // Load user state from localStorage on component mount and when localStorage changes
-  const uid = localStorage.getItem("uid");
-  useEffect(() => {
-   
-    const handleStorageChange = () => {
-      const uid = localStorage.getItem("uid");
-      const email = localStorage.getItem("email");
-      const displayName = localStorage.getItem("displayName");
-      const photoURL = localStorage.getItem("photoURL");
-      if (uid) {
-        setUser({ uid, email, displayName, photoURL });
-      } else {
-        setUser(null);
-      }
-    };
-    
-
-    handleStorageChange(); // Initial load
-    window.addEventListener("storage", handleStorageChange); // Listen for storage changes
-
-    return () => {
-      window.removeEventListener("storage", handleStorageChange); // Clean up listener
-    };
-    
-  }, [uid]);
-
-  const handleLogout = () => {
-    localStorage.clear();
-    setUser(null);
-    alert("You have logged out successfully!");
-    navigate("/login");
-  };
 
   const handleProfile = () => {
     navigate("/profile");
@@ -103,8 +72,8 @@ const Navbar = () => {
                   Upgrade
                 </button>
                 <img
-                  src={user.photoURL || userImage} // Use the photoURL if available, else default
-                  alt="User"
+                  src={user.photoURL || userImage}
+                  alt={user.displayName || "User Profile"}
                   className="rounded-circle"
                   style={{
                     width: "40px",
@@ -116,7 +85,11 @@ const Navbar = () => {
                 />
                 <button
                   className="btn btn-outline-danger me-2"
-                  onClick={handleLogout}
+                  onClick={() => {
+                    logout();
+                    toast.success("Logged out successfully!", { position: "top-center" });
+                    navigate("/login");
+                  }}
                 >
                   Logout
                 </button>
