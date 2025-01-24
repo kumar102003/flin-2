@@ -28,3 +28,8 @@ tmp/
 temp/
 
 # IDE
+.vscode/
+.idea/
+
+# Service account key
+utils/serviceAccountKey.json
